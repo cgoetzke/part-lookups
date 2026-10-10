@@ -73,3 +73,9 @@ so tests can unit-test the parsers directly — dispatch only runs standalone.
   equivalents at other distributors.
 - Fastenal also prints manufacturer part numbers in "BRY5965Y"-style form;
   the OEM's own catalog number may be shorter (e.g. Bryant `5965Y`).
+
+## License
+
+GPL-3.0-or-later — see [LICENSE](LICENSE). Covers the scripts and test
+suites. The `tests/fixtures/cache/` page captures are factual product data
+(not copyrightable) and carry no license claim.

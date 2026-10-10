@@ -1,4 +1,5 @@
 ﻿# tests/run.ps1 -- offline test suite for fastenal-lookup.ps1
+# SPDX-License-Identifier: GPL-3.0-or-later
 # Mirrors tests/run.sh. Run:  pwsh tests/run.ps1   (or powershell.exe)
 # Written for Windows PowerShell 5.1 compatibility.
 $ErrorActionPreference = 'Continue'

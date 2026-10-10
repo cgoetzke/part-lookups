@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Offline test suite for fastenal-lookup.sh -- real fixtures + stubbed network.
+# SPDX-License-Identifier: GPL-3.0-or-later
 # Run from anywhere: tests/run.sh
 set -u
 cd "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/.."

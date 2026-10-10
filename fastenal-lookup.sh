@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 # fastenal-lookup.sh -- resolve Fastenal SKUs to manufacturer + OEM part number
+# SPDX-FileCopyrightText: 2026 clg <clg@hackerforge.net>
+# SPDX-License-Identifier: GPL-3.0-or-later
 # with zero LLM involvement.
 #
 # How it works:

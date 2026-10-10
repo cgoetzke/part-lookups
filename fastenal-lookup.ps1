@@ -1,4 +1,6 @@
 # fastenal-lookup.ps1 -- Fastenal SKU -> manufacturer + OEM part number
+# SPDX-FileCopyrightText: 2026 clg <clg@hackerforge.net>
+# SPDX-License-Identifier: GPL-3.0-or-later
 # PowerShell port of fastenal-lookup.sh (no dependencies; works on Windows
 # PowerShell 5.1 and PowerShell 7+, and on Linux/macOS pwsh).
 #
