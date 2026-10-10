@@ -13,7 +13,7 @@ Resolve distributor SKUs to manufacturer + OEM part number.
 ## Usage
 
 ```sh
-./fastenal-lookup.sh < examples/fastenal-skus.txt > out.csv    # CSV (Excel-friendly: quoted, BOM)
+./fastenal-lookup.sh < examples/fastenal-skus.txt > out.csv    # CSV (Excel-friendly: quoted, BOM, twins)
 TSV=1 ./fastenal-lookup.sh < examples/fastenal-skus.txt | column -t -s$'\t'  # TSV (pipe-friendly)
 ```
 
@@ -24,6 +24,8 @@ Get-Content examples\fastenal-skus.txt | .\fastenal-lookup.ps1  # pipe
 .\fastenal-lookup.ps1 -Tsv 0345865                       # tab-separated
 ... | Out-File -Encoding utf8 out.csv                     # save (Out-File keeps UTF-8+BOM on PS 5.1)
 ```
+
+CSV mode also emits `sku_excel` / `mfr_part_excel` twin columns: formula cells (`="0345865"`) that Excel renders intact instead of eating leading zeros or turning `06-243` into a date. TSV output (`TSV=1` / `-Tsv`) stays pure for scripts.
 
 Or on Windows: double-click `lookup.bat`, or drag a SKU-list `.txt` onto it.
 

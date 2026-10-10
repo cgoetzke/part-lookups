@@ -48,6 +48,12 @@ AssertEq 'csv field: plain untouched' 'abc' (ConvertTo-CsvField 'abc')
 AssertEq 'csv field: comma quoted' '"a,b"' (ConvertTo-CsvField 'a,b')
 AssertEq 'csv field: quote doubled' '"a""b"' (ConvertTo-CsvField 'a"b')
 
+# --- ConvertTo-ExcelField unit tests
+AssertEq 'excel field: digits wrapped' '="0345865"' (ConvertTo-ExcelField '0345865')
+AssertEq 'excel field: hyphenated numeric wrapped' '="06-243"' (ConvertTo-ExcelField '06-243')
+AssertEq 'excel field: alphanumeric untouched' 'BRY5969Y' (ConvertTo-ExcelField 'BRY5969Y')
+AssertEq 'excel field: dash untouched' '-' (ConvertTo-ExcelField '-')
+
 # --- Get-Page: cache hit is offline
 $CacheDir = $Fix
 $md = Get-Page -Sku 0700344 -Mode md
@@ -104,9 +110,9 @@ AssertEq 'e2e: pipe input with comments/blanks (3 lines)' 3 @($out3).Count
 # --- default output format: Excel-friendly CSV (no BOM from the script
 #     itself on PS; Out-File -Encoding utf8 supplies it on 5.1)
 $outc = & $psExe -NoProfile -File $script1 -CacheDir $Fix -SleepSec 0 0700344
-AssertEq 'e2e: default CSV header' 'sku,title,manufacturer,brand,mfr_part_no,unspsc,status' (@($outc)[0])
-AssertEq 'e2e: default CSV row' `
-    '0700344,15A 125V 2P 3W 5-15 Yellow Straight Connector,HUBBELL,BRYANT,BRY5969Y,39121421,OK' `
+AssertEq 'e2e: default CSV header (twins)' 'sku,sku_excel,title,manufacturer,brand,mfr_part_no,mfr_part_excel,unspsc,status' (@($outc)[0])
+AssertEq 'e2e: default CSV row (nested twin quoting)' `
+    '0700344,"=""0700344""",15A 125V 2P 3W 5-15 Yellow Straight Connector,HUBBELL,BRYANT,BRY5969Y,BRY5969Y,39121421,OK' `
     (@($outc | Where-Object { $_ -like '0700344,*' })[0])
 
 Write-Host ''

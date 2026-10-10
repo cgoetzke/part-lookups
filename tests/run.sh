@@ -27,6 +27,12 @@ assert_eq "csvq: plain untouched" "abc" "$(csvq abc)"
 assert_eq "csvq: comma quoted" '"a,b"' "$(csvq 'a,b')"
 assert_eq "csvq: quote doubled" '"a""b"' "$(csvq 'a"b')"
 
+# --- excelq unit tests (Excel-safe twins)
+assert_eq "excelq: digits wrapped" '="0345865"' "$(excelq 0345865)"
+assert_eq "excelq: hyphenated numeric wrapped (date risk)" '="06-243"' "$(excelq 06-243)"
+assert_eq "excelq: alphanumeric untouched" "BRY5969Y" "$(excelq BRY5969Y)"
+assert_eq "excelq: dash untouched" "-" "$(excelq -)"
+
 # --- parse_md unit tests (against real cached renders)
 mdf() { parse_md "$2" < "$FIX/$1" | tr '\037' '|'; }
 assert_eq "md: full fields (0700344)" \
@@ -66,13 +72,16 @@ assert_eq "e2e: md/html fallback fills blank fields (0700343)" \
   "$(printf '0700343\t15A 125V 2P 3W NEMA 5-15 Yellow Straight Blade Plug\tHUBBELL\tBRYANT\tBRY5965Y\t39121402\tOK')" \
   "$(row "$out3" 0700343)"
 
-# --- default output format: Excel-friendly CSV (comma, BOM, quoting)
+# --- default output format: Excel-friendly CSV (comma, BOM, twins, quoting)
 out=$(SLEEP=0 CACHE="$FIX" ./fastenal-lookup.sh 0700344 0345865)
-assert_eq "csv: BOM + comma header" \
-  "$(printf '\xef\xbb\xbfsku,title,manufacturer,brand,mfr_part_no,unspsc,status')" "$(head -1 <<<"$out")"
-assert_eq "csv: row delimiter is comma" \
-  "$(printf '0700344,15A 125V 2P 3W 5-15 Yellow Straight Connector,HUBBELL,BRYANT,BRY5969Y,39121421,OK')" \
+assert_eq "csv: BOM + 9-col header with twins" \
+  "$(printf '\xef\xbb\xbfsku,sku_excel,title,manufacturer,brand,mfr_part_no,mfr_part_excel,unspsc,status')" "$(head -1 <<<"$out")"
+assert_eq "csv: wrapped sku twin nests through RFC4180" \
+  "$(printf '0700344,"=""0700344""",15A 125V 2P 3W 5-15 Yellow Straight Connector,HUBBELL,BRYANT,BRY5969Y,BRY5969Y,39121421,OK')" \
   "$(grep '^0700344,' <<<"$out")"
+assert_eq "csv: quoted title + missing-mpn twin stays '-'" \
+  "$(printf '0345865,"=""0345865""","1/2"" x 6"" OAL 135° Split Black / Gold High Speed Steel Straight Jobber Drill",FASTENAL APPROVED VENDOR,ORMADUS,-,-,23241634,OK')" \
+  "$(grep '^0345865,' <<<"$out")"
 assert_eq "csv: no BOM in TSV mode" "sku" "$(TSV=1 SLEEP=0 CACHE="$FIX" ./fastenal-lookup.sh 0700344 | head -c3)"
 
 # --- stdin: CRLF, comments, blank lines

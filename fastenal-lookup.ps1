@@ -158,6 +158,13 @@ begin {
         if ($Field -match '[,"\r\n]') { '"' + $Field.Replace('"', '""') + '"' } else { $Field }
     }
 
+    # Excel-safe twin: ="v" for values Excel would coerce on CSV open
+    # (leading zeros; date/fraction lookalikes: digits . , / -)
+    function ConvertTo-ExcelField {
+        param([string]$Field)
+        if ($Field -match '^[0-9][0-9.,/-]*$') { '="' + $Field + '"' } else { $Field }
+    }
+
     # --- functions end here; below runs only standalone ---
     if ($MyInvocation.ScriptName -ne '') { return }   # dot-sourced: import only
     $script:Standalone = $true
@@ -196,16 +203,25 @@ end {
             Manufacturer, Brand, MfrPartNo, Unspsc, Status -AutoSize | Out-String -Width 4096
     } else {
         # Default output: Excel-friendly CSV (comma-delimited, RFC4180-
-        # quoted). The UTF-8 BOM is supplied by Out-File -Encoding utf8
-        # on PS 5.1 (see usage note); -Tsv restores pure tab-separated
-        # output for pipes.
-        $sep = if ($Tsv) { "`t" } else { ',' }
-        ('sku','title','manufacturer','brand','mfr_part_no','unspsc','status') -join $sep
-        foreach ($r in $script:rows) {
-            $f = @($r.Sku, $r.Title, $r.Manufacturer, $r.Brand, $r.MfrPartNo, $r.Unspsc, $r.Status) |
-                 ForEach-Object { if ($_ -eq $null -or $_ -eq '') { '-' } else { "$_" } }
-            if ($Tsv) { ($f | ForEach-Object { $_ -replace "`t", ' ' }) -join $sep }
-            else      { ($f | ForEach-Object { ConvertTo-CsvField $_ }) -join $sep }
+        # quoted, UTF-8 BOM via Out-File on PS 5.1). CSV carries _excel
+        # twins of the two key columns: formula cells (="0345865") that
+        # Excel renders intact instead of coercing to number/date.
+        # -Tsv restores pure tab-separated output for pipes.
+        if ($Tsv) {
+            ('sku','title','manufacturer','brand','mfr_part_no','unspsc','status') -join "`t"
+            foreach ($r in $script:rows) {
+                $f = @($r.Sku, $r.Title, $r.Manufacturer, $r.Brand, $r.MfrPartNo, $r.Unspsc, $r.Status) |
+                     ForEach-Object { if ($_ -eq $null -or $_ -eq '') { '-' } else { "$_" } }
+                ($f | ForEach-Object { $_ -replace "`t", ' ' }) -join "`t"
+            }
+        } else {
+            ('sku','sku_excel','title','manufacturer','brand','mfr_part_no','mfr_part_excel','unspsc','status') -join ','
+            foreach ($r in $script:rows) {
+                $f = @($r.Sku, (ConvertTo-ExcelField "$($r.Sku)"), $r.Title, $r.Manufacturer, $r.Brand,
+                       $r.MfrPartNo, (ConvertTo-ExcelField "$($r.MfrPartNo)"), $r.Unspsc, $r.Status) |
+                     ForEach-Object { if ($_ -eq $null -or $_ -eq '') { '-' } else { "$_" } }
+                ($f | ForEach-Object { ConvertTo-CsvField $_ }) -join ','
+            }
         }
     }
 }

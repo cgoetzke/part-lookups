@@ -96,6 +96,12 @@ csvq() {  # csv field -> stdout, RFC4180-quoted if it contains , " or newline
   esac
 }
 
+excelq() {  # value -> Excel-safe twin ="v" when Excel would coerce it
+            # (leading zeros; date/fraction lookalikes: digits . , / -)
+  if [[ $1 =~ ^[0-9][0-9.,/-]*$ ]]; then printf '="%s"' "$1"
+  else printf '%s' "$1"; fi
+}
+
 emit_row() {  # 7 fields -> active output format (TSV or CSV) on stdout
   if (( TSV )); then
     printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$@"
@@ -121,7 +127,11 @@ main() {
   (( $# > 0 )) || { echo "${0##*/}: no SKUs given" >&2; exit 1; }
 
   (( TSV )) || printf '\xef\xbb\xbf'   # UTF-8 BOM: Excel opens the CSV clean
-  emit_row sku title manufacturer brand mfr_part_no unspsc status
+  if (( TSV )); then
+    emit_row sku title manufacturer brand mfr_part_no unspsc status
+  else
+    emit_row sku sku_excel title manufacturer brand mfr_part_no mfr_part_excel unspsc status
+  fi
 
   for sku in "$@"; do
   if md=$(fetch_md "$sku"); then
@@ -136,7 +146,12 @@ main() {
   else
     title=-; mfr=-; brand=-; mpn=-; unspsc=-; status=FETCH_FAILED
   fi
-    emit_row "$sku" "${title:--}" "${mfr:--}" "${brand:--}" "${mpn:--}" "${unspsc:--}" "$status"
+    if (( TSV )); then
+      emit_row "$sku" "${title:--}" "${mfr:--}" "${brand:--}" "${mpn:--}" "${unspsc:--}" "$status"
+    else
+      emit_row "$sku" "$(excelq "$sku")" "${title:--}" "${mfr:--}" "${brand:--}" \
+               "${mpn:--}" "$(excelq "${mpn:--}")" "${unspsc:--}" "$status"
+    fi
     sleep "$SLEEP"
   done
 }
