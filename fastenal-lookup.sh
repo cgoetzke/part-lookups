@@ -97,14 +97,19 @@ csvq() {  # csv field -> stdout, RFC4180-quoted if it contains , " or newline
 }
 
 excelq() {  # value -> Excel-safe twin ="v" when Excel would coerce it
-            # (leading zeros; date/fraction lookalikes: digits . , / -)
-  if [[ $1 =~ ^[0-9][0-9.,/-]*$ ]]; then printf '="%s"' "$1"
+            # (leading zeros; date/fraction/scientific lookalikes: digits
+            #  and . , / + e E after a digit, dot, or plus start)
+  if [[ $1 =~ ^[0-9.+][0-9.,/+eE-]*$ ]]; then printf '="%s"' "$1"
   else printf '%s' "$1"; fi
 }
 
 emit_row() {  # 7 fields -> active output format (TSV or CSV) on stdout
   if (( TSV )); then
-    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$@"
+    # embedded tabs/newlines would break the column count; replace with
+    # spaces (same sanitization as the PowerShell port)
+    local f s line=''
+    for f; do s=${f//$'\t'/ }; s=${s//$'\r'/ }; s=${s//$'\n'/ }; line+="${line:+$'\t'}$s"; done
+    printf '%s\n' "$line"
   else
     local f q line=''
     for f; do q=$(csvq "$f"); line+="${line:+,}$q"; done
@@ -121,7 +126,7 @@ main() {
   # SKUs from args, or one per line from stdin (CRLF, blanks, #-comments tolerated)
   if (( $# == 0 )); then
     [[ -t 0 ]] && { echo "usage: ${0##*/} SKU [SKU...]  (or pipe SKUs on stdin)" >&2; exit 1; }
-    mapfile -t skus < <(tr -d '\r' | grep -Ev '^[[:space:]]*($|#)')
+    mapfile -t skus < <(tr -d '\r' | sed -E 's/^[[:space:]]+//; s/[[:space:]]+$//' | grep -Ev '^($|#)')
     set -- "${skus[@]}"
   fi
   (( $# > 0 )) || { echo "${0##*/}: no SKUs given" >&2; exit 1; }
@@ -134,6 +139,16 @@ main() {
   fi
 
   for sku in "$@"; do
+  # guard: SKUs become cache filenames -- keep them inside the charset
+  if [[ ! $sku =~ ^[A-Za-z0-9._-]{1,32}$ ]]; then
+    echo "${0##*/}: invalid SKU '$sku' (allowed: letters, digits, . _ -; max 32)" >&2
+    if (( TSV )); then
+      emit_row "$sku" - - - - - INVALID_SKU
+    else
+      emit_row "$sku" "$(excelq "$sku")" - - - - "$(excelq -)" - INVALID_SKU
+    fi
+    continue
+  fi
   if md=$(fetch_md "$sku"); then
     IFS=$'\037' read -r title mfr brand mpn unspsc status <<<"$(parse_md "$sku" <<<"$md")"
     # some renders drop link-wrapped Manufacturer/Brand cells -> HTML fallback

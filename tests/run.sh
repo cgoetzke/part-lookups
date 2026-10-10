@@ -30,8 +30,15 @@ assert_eq "csvq: quote doubled" '"a""b"' "$(csvq 'a"b')"
 # --- excelq unit tests (Excel-safe twins)
 assert_eq "excelq: digits wrapped" '="0345865"' "$(excelq 0345865)"
 assert_eq "excelq: hyphenated numeric wrapped (date risk)" '="06-243"' "$(excelq 06-243)"
+assert_eq "excelq: leading-dot wrapped (fraction risk)" '=".5"' "$(excelq .5)"
+assert_eq "excelq: scientific wrapped" '="1e10"' "$(excelq 1e10)"
+assert_eq "excelq: leading-plus wrapped" '="+1"' "$(excelq +1)"
 assert_eq "excelq: alphanumeric untouched" "BRY5969Y" "$(excelq BRY5969Y)"
 assert_eq "excelq: dash untouched" "-" "$(excelq -)"
+
+# --- emit_row TSV sanitization unit
+assert_eq "tsv: embedded tab/crlf -> spaces" "$(printf 'a b\tc d\te f\tg')" \
+  "$(TSV=1 emit_row "$(printf 'a\tb')" "$(printf 'c\rd')" "$(printf 'e\nf')" g)"
 
 # --- parse_md unit tests (against real cached renders)
 mdf() { parse_md "$2" < "$FIX/$1" | tr '\037' '|'; }
@@ -83,6 +90,16 @@ assert_eq "csv: quoted title + missing-mpn twin stays '-'" \
   "$(printf '0345865,"=""0345865""","1/2"" x 6"" OAL 135° Split Black / Gold High Speed Steel Straight Jobber Drill",FASTENAL APPROVED VENDOR,ORMADUS,-,-,23241634,OK')" \
   "$(grep '^0345865,' <<<"$out")"
 assert_eq "csv: no BOM in TSV mode" "sku" "$(TSV=1 SLEEP=0 CACHE="$FIX" ./fastenal-lookup.sh 0700344 | head -c3)"
+
+# --- SKU guard: charset validation before any cache-path use
+out=$(printf '  0700344  \n../pwned\nfoo bar\n' | SLEEP=0 TSV=1 CACHE="$FIX" ./fastenal-lookup.sh)
+assert_eq "guard: padded SKU trimmed, OK row" \
+  "$(printf '0700344\t15A 125V 2P 3W 5-15 Yellow Straight Connector\tHUBBELL\tBRYANT\tBRY5969Y\t39121421\tOK')" "$(row "$out" 0700344)"
+assert_eq "guard: traversal SKU -> INVALID_SKU row" \
+  "$(printf '../pwned\t-\t-\t-\t-\t-\tINVALID_SKU')" "$(row "$out" ../pwned)"
+assert_eq "guard: spaced input -> INVALID_SKU row" \
+  "$(printf 'foo bar\t-\t-\t-\t-\t-\tINVALID_SKU')" "$(row "$out" 'foo bar')"
+if [[ ! -e $FIX/../pwned.md ]]; then ok "guard: no file written outside cache"; else bad "guard: no file written outside cache"; rm -f "$FIX/../pwned.md"; fi
 
 # --- stdin: CRLF, comments, blank lines
 n=$(printf '0700344\r\n# a comment\n\n0345865\n' | TSV=1 SLEEP=0 CACHE="$FIX" ./fastenal-lookup.sh | wc -l)

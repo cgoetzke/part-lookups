@@ -147,7 +147,16 @@ begin {
                 Add-Skus -Items ([IO.File]::ReadAllLines($t))
             } else {
                 $script:sawInput = $true
-                Invoke-Lookup -Sku $t
+                if ($t -notmatch '^[A-Za-z0-9._-]{1,32}$') {
+                    # SKUs become cache filenames -- keep them inside the charset
+                    [Console]::Error.WriteLine(("invalid SKU '{0}' (allowed: letters, digits, . _ -; max 32)" -f $t))
+                    $script:rows.Add([pscustomobject]@{
+                        Sku = $t; Title = '-'; Manufacturer = '-'; Brand = '-'
+                        MfrPartNo = '-'; Unspsc = '-'; Status = 'INVALID_SKU'
+                    })
+                } else {
+                    Invoke-Lookup -Sku $t
+                }
             }
         }
     }
@@ -159,10 +168,18 @@ begin {
     }
 
     # Excel-safe twin: ="v" for values Excel would coerce on CSV open
-    # (leading zeros; date/fraction lookalikes: digits . , / -)
+    # (leading zeros; date/fraction/scientific lookalikes: digits and
+    # . , / + e E after a digit, dot, or plus start)
     function ConvertTo-ExcelField {
         param([string]$Field)
-        if ($Field -match '^[0-9][0-9.,/-]*$') { '="' + $Field + '"' } else { $Field }
+        if ($Field -match '^[0-9.+][0-9.,/+eE-]*$') { '="' + $Field + '"' } else { $Field }
+    }
+
+    # TSV field: embedded tabs/newlines would break the column count;
+    # replace with spaces (same sanitization as the bash port)
+    function ConvertTo-TsvField {
+        param([string]$Field)
+        $Field -replace "[`t`r`n]", ' '
     }
 
     # --- functions end here; below runs only standalone ---
@@ -212,7 +229,7 @@ end {
             foreach ($r in $script:rows) {
                 $f = @($r.Sku, $r.Title, $r.Manufacturer, $r.Brand, $r.MfrPartNo, $r.Unspsc, $r.Status) |
                      ForEach-Object { if ($_ -eq $null -or $_ -eq '') { '-' } else { "$_" } }
-                ($f | ForEach-Object { $_ -replace "`t", ' ' }) -join "`t"
+                ($f | ForEach-Object { ConvertTo-TsvField $_ }) -join "`t"
             }
         } else {
             ('sku','sku_excel','title','manufacturer','brand','mfr_part_no','mfr_part_excel','unspsc','status') -join ','

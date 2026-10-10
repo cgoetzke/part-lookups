@@ -51,8 +51,15 @@ AssertEq 'csv field: quote doubled' '"a""b"' (ConvertTo-CsvField 'a"b')
 # --- ConvertTo-ExcelField unit tests
 AssertEq 'excel field: digits wrapped' '="0345865"' (ConvertTo-ExcelField '0345865')
 AssertEq 'excel field: hyphenated numeric wrapped' '="06-243"' (ConvertTo-ExcelField '06-243')
+AssertEq 'excel field: leading-dot wrapped' '=".5"' (ConvertTo-ExcelField '.5')
+AssertEq 'excel field: scientific wrapped' '="1e10"' (ConvertTo-ExcelField '1e10')
+AssertEq 'excel field: leading-plus wrapped' '="+1"' (ConvertTo-ExcelField '+1')
 AssertEq 'excel field: alphanumeric untouched' 'BRY5969Y' (ConvertTo-ExcelField 'BRY5969Y')
 AssertEq 'excel field: dash untouched' '-' (ConvertTo-ExcelField '-')
+
+# --- ConvertTo-TsvField unit tests
+AssertEq 'tsv field: tab/crlf -> spaces' 'a b c' (ConvertTo-TsvField "a`tb`rc")
+AssertEq 'tsv field: plain untouched' 'abc' (ConvertTo-TsvField 'abc')
 
 # --- Get-Page: cache hit is offline
 $CacheDir = $Fix
@@ -106,6 +113,11 @@ AssertEq 'e2e: md/html fallback fills blank fields (0700343)' `
 
 $out3 = '0700344', '# comment', '', '0345865' | & $psExe -NoProfile -File $script1 -Tsv -CacheDir $Fix -SleepSec 0
 AssertEq 'e2e: pipe input with comments/blanks (3 lines)' 3 @($out3).Count
+
+# --- SKU guard: charset validation before any cache-path use
+$outg = '../pwned', '0700344' | & $psExe -NoProfile -File $script1 -Tsv -CacheDir $Fix -SleepSec 0
+AssertEq 'e2e: guard emits header + 2 rows' 3 @($outg).Count
+AssertEq 'e2e: traversal SKU -> INVALID_SKU' ('../pwned' + "`t-`t-`t-`t-`t-`tINVALID_SKU") (Row $outg '../pwned')
 
 # --- default output format: Excel-friendly CSV (no BOM from the script
 #     itself on PS; Out-File -Encoding utf8 supplies it on 5.1)
