@@ -25,7 +25,7 @@ Get-Content -Encoding UTF8 examples\fastenal-skus.txt | .\fastenal-lookup.ps1  #
 ... | Out-File -Encoding utf8 out.csv                     # save (5.1 adds the BOM; PS 7 utf8 is BOM-less -- use utf8BOM there)
 ```
 
-CSV mode also emits `sku_excel` / `mfr_part_excel` twin columns: formula cells (`="0345865"`) that Excel renders intact instead of eating leading zeros or turning `06-243` into a date. TSV output (`TSV=1` / `-Tsv`) stays lean for scripts; fields containing tabs or newlines are replaced with spaces in both implementations.
+CSV mode also emits `sku_excel` / `mfr_part_excel` twin columns: formula cells (`="0345865"`) that Excel renders intact instead of eating leading zeros or turning `06-243` into a date. TSV output (`TSV=1` / `-Tsv`) stays lean for scripts; fields containing tabs or newlines are replaced with spaces in both implementations. Formula-injection guard: any field Excel would evaluate as a formula (`=`, `+`, `-`, `@`, tab, or CR prefix — including echoed invalid SKUs) is neutered into the same `="..."` literal form in CSV mode; TSV leaves field content untouched.
 
 Or on Windows: double-click `lookup.bat`, or drag a SKU-list `.txt` onto it.
 

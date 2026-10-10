@@ -36,6 +36,16 @@ assert_eq "excelq: leading-plus wrapped" '="+1"' "$(excelq +1)"
 assert_eq "excelq: alphanumeric untouched" "BRY5969Y" "$(excelq BRY5969Y)"
 assert_eq "excelq: dash untouched" "-" "$(excelq -)"
 
+# --- xlsafe unit tests (CSV formula-injection neuter)
+assert_eq "xlsafe: formula neutered" '="=1+1"' "$(xlsafe '=1+1')"
+assert_eq "xlsafe: dde-style payload neutered" '="+cmd|x!A0"' "$(xlsafe '+cmd|x!A0')"
+assert_eq "xlsafe: at-sign neutered" '="@x"' "$(xlsafe '@x')"
+assert_eq "xlsafe: leading-minus neutered" '="-2+3"' "$(xlsafe '-2+3')"
+assert_eq "xlsafe: dash marker untouched" "-" "$(xlsafe -)"
+assert_eq "xlsafe: plain untouched" "abc" "$(xlsafe abc)"
+assert_eq "xlsafe: internal quotes doubled" '="=""x"""' "$(xlsafe '="x"')"
+assert_eq "excelq: dangerous prefix delegated" '="=1+1"' "$(excelq '=1+1')"
+
 # --- emit_row TSV sanitization unit
 assert_eq "tsv: embedded tab/crlf -> spaces" "$(printf 'a b\tc d\te f\tg')" \
   "$(TSV=1 emit_row "$(printf 'a\tb')" "$(printf 'c\rd')" "$(printf 'e\nf')" g)"
@@ -100,6 +110,11 @@ assert_eq "guard: traversal SKU -> INVALID_SKU row" \
 assert_eq "guard: spaced input -> INVALID_SKU row" \
   "$(printf 'foo bar\t-\t-\t-\t-\t-\tINVALID_SKU')" "$(row "$out" 'foo bar')"
 if [[ ! -e $FIX/../pwned.md ]]; then ok "guard: no file written outside cache"; else bad "guard: no file written outside cache"; rm -f "$FIX/../pwned.md"; fi
+
+# --- CSV formula injection: payloads echo-neutered even in INVALID_SKU rows
+out=$(printf '=1+1\n0700344\n' | SLEEP=0 CACHE="$FIX" ./fastenal-lookup.sh)
+assert_eq "csv: formula payload neutered in INVALID_SKU row" \
+  "$(printf '"=""=1+1""","=""=1+1""",-,-,-,-,-,-,INVALID_SKU')" "$(grep '^"=' <<<"$out")"
 
 # --- stdin: CRLF, comments, blank lines
 n=$(printf '0700344\r\n# a comment\n\n0345865\n' | TSV=1 SLEEP=0 CACHE="$FIX" ./fastenal-lookup.sh | wc -l)

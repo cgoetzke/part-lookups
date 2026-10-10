@@ -96,11 +96,24 @@ csvq() {  # csv field -> stdout, RFC4180-quoted if it contains , " or newline
   esac
 }
 
-excelq() {  # value -> Excel-safe twin ="v" when Excel would coerce it
-            # (leading zeros; date/fraction/scientific lookalikes: digits
-            #  and . , / + e E after a digit, dot, or plus start)
+xlsafe() {  # neuter CSV formula injection: a field Excel would evaluate
+            # (= + - @ tab CR prefix) becomes an inert ="..." string
+            # literal -- the same trick as the _excel twins. The exact
+            # '-' missing-value marker passes through.
+  local f=$1
+  if [[ $f == [=+@-]* || $f == $'\t'* || $f == $'\r'* ]] && [[ $f != - ]]; then
+    f=${f//'"'/'""'}
+    printf '="%s"' "$f"
+  else
+    printf '%s' "$f"
+  fi
+}
+
+excelq() {  # value -> Excel-safe twin ="v": numeric-coercibles (leading
+            # zeros; date/fraction/scientific lookalikes) AND anything
+            # Excel would evaluate as a formula (via xlsafe)
   if [[ $1 =~ ^[0-9.+][0-9.,/+eE-]*$ ]]; then printf '="%s"' "$1"
-  else printf '%s' "$1"; fi
+  else xlsafe "$1"; fi
 }
 
 emit_row() {  # 7 fields -> active output format (TSV or CSV) on stdout
@@ -145,7 +158,7 @@ main() {
     if (( TSV )); then
       emit_row "$sku" - - - - - INVALID_SKU
     else
-      emit_row "$sku" "$(excelq "$sku")" - - - - "$(excelq -)" - INVALID_SKU
+      emit_row "$(xlsafe "$sku")" "$(excelq "$sku")" - - - - - - INVALID_SKU
     fi
     continue
   fi
@@ -164,8 +177,8 @@ main() {
     if (( TSV )); then
       emit_row "$sku" "${title:--}" "${mfr:--}" "${brand:--}" "${mpn:--}" "${unspsc:--}" "$status"
     else
-      emit_row "$sku" "$(excelq "$sku")" "${title:--}" "${mfr:--}" "${brand:--}" \
-               "${mpn:--}" "$(excelq "${mpn:--}")" "${unspsc:--}" "$status"
+      emit_row "$(xlsafe "$sku")" "$(excelq "$sku")" "$(xlsafe "${title:--}")" "$(xlsafe "${mfr:--}")" "$(xlsafe "${brand:--}")" \
+               "$(xlsafe "${mpn:--}")" "$(excelq "${mpn:--}")" "$(xlsafe "${unspsc:--}")" "$(xlsafe "$status")"
     fi
     sleep "$SLEEP"
   done

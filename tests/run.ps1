@@ -57,6 +57,16 @@ AssertEq 'excel field: leading-plus wrapped' '="+1"' (ConvertTo-ExcelField '+1')
 AssertEq 'excel field: alphanumeric untouched' 'BRY5969Y' (ConvertTo-ExcelField 'BRY5969Y')
 AssertEq 'excel field: dash untouched' '-' (ConvertTo-ExcelField '-')
 
+# --- ConvertTo-XlsField unit tests (CSV formula-injection neuter)
+AssertEq 'xls field: formula neutered' '="=1+1"' (ConvertTo-XlsField '=1+1')
+AssertEq 'xls field: dde-style neutered' '="+cmd|x!A0"' (ConvertTo-XlsField '+cmd|x!A0')
+AssertEq 'xls field: at-sign neutered' '="@x"' (ConvertTo-XlsField '@x')
+AssertEq 'xls field: leading-minus neutered' '="-2+3"' (ConvertTo-XlsField '-2+3')
+AssertEq 'xls field: dash marker untouched' '-' (ConvertTo-XlsField '-')
+AssertEq 'xls field: plain untouched' 'abc' (ConvertTo-XlsField 'abc')
+AssertEq 'xls field: internal quotes doubled' '="=""x"""' (ConvertTo-XlsField '="x"')
+AssertEq 'excel field: dangerous prefix delegated' '="=1+1"' (ConvertTo-ExcelField '=1+1')
+
 # --- ConvertTo-TsvField unit tests
 AssertEq 'tsv field: tab/crlf -> spaces' 'a b c' (ConvertTo-TsvField "a`tb`rc")
 AssertEq 'tsv field: plain untouched' 'abc' (ConvertTo-TsvField 'abc')
@@ -118,6 +128,10 @@ AssertEq 'e2e: pipe input with comments/blanks (3 lines)' 3 @($out3).Count
 $outg = '../pwned', '0700344' | & $psExe -NoProfile -File $script1 -Tsv -CacheDir $Fix -SleepSec 0
 AssertEq 'e2e: guard emits header + 2 rows' 3 @($outg).Count
 AssertEq 'e2e: traversal SKU -> INVALID_SKU' ('../pwned' + "`t-`t-`t-`t-`t-`tINVALID_SKU") (Row $outg '../pwned')
+
+# --- CSV formula injection: payloads echo-neutered even in INVALID_SKU rows
+$outx = '=1+1', '0700344' | & $psExe -NoProfile -File $script1 -CacheDir $Fix -SleepSec 0
+AssertEq 'e2e: formula payload neutered in INVALID_SKU row' '"=""=1+1""","=""=1+1""",-,-,-,-,-,-,INVALID_SKU' (@($outx | Where-Object { $_ -like '"=""=1+1*' })[0])
 
 # --- default output format: Excel-friendly CSV (no BOM from the script
 #     itself on PS; Out-File -Encoding utf8 supplies it on 5.1)

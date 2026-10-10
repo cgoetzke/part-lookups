@@ -170,10 +170,21 @@ begin {
 
     # Excel-safe twin: ="v" for values Excel would coerce on CSV open
     # (leading zeros; date/fraction/scientific lookalikes: digits and
-    # . , / + e E after a digit, dot, or plus start)
+    # . , / + e E after a digit, dot, or plus start), and for anything
+    # Excel would evaluate as a formula (via ConvertTo-XlsField)
     function ConvertTo-ExcelField {
         param([string]$Field)
-        if ($Field -match '^[0-9.+][0-9.,/+eE-]*$') { '="' + $Field + '"' } else { $Field }
+        if ($Field -match '^[0-9.+][0-9.,/+eE-]*$') { '="' + $Field + '"' }
+        elseif ($Field -eq '-') { $Field }
+        else { ConvertTo-XlsField $Field }
+    }
+
+    # CSV-formula neuter: a field Excel would evaluate (= + - @ tab CR
+    # prefix) becomes an inert ="..." literal, like the _excel twins.
+    # The exact '-' missing-value marker passes through.
+    function ConvertTo-XlsField {
+        param([string]$Field)
+        if ($Field -ne '-' -and $Field -match '^[=+@\t\r-]') { '="' + $Field.Replace('"', '""') + '"' } else { $Field }
     }
 
     # TSV field: embedded tabs/newlines would break the column count;
@@ -235,8 +246,10 @@ end {
         } else {
             ('sku','sku_excel','title','manufacturer','brand','mfr_part_no','mfr_part_excel','unspsc','status') -join ','
             foreach ($r in $script:rows) {
-                $f = @($r.Sku, (ConvertTo-ExcelField "$($r.Sku)"), $r.Title, $r.Manufacturer, $r.Brand,
-                       $r.MfrPartNo, (ConvertTo-ExcelField "$($r.MfrPartNo)"), $r.Unspsc, $r.Status) |
+                $f = @((ConvertTo-XlsField "$($r.Sku)"), (ConvertTo-ExcelField "$($r.Sku)"),
+                       (ConvertTo-XlsField "$($r.Title)"), (ConvertTo-XlsField "$($r.Manufacturer)"), (ConvertTo-XlsField "$($r.Brand)"),
+                       (ConvertTo-XlsField "$($r.MfrPartNo)"), (ConvertTo-ExcelField "$($r.MfrPartNo)"),
+                       (ConvertTo-XlsField "$($r.Unspsc)"), (ConvertTo-XlsField "$($r.Status)")) |
                      ForEach-Object { if ($_ -eq $null -or $_ -eq '') { '-' } else { "$_" } }
                 ($f | ForEach-Object { ConvertTo-CsvField $_ }) -join ','
             }
