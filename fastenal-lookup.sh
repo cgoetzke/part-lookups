@@ -21,19 +21,8 @@
 # Output:  TSV: sku, title, manufacturer, brand, mfr_part_no, unspsc, status
 # Env:     CACHE=dir   disk cache (default ~/.cache/fastenal-lookup)
 #          SLEEP=secs  pause between live fetches (default 2)
-set -euo pipefail
-
-CACHE="${CACHE:-$HOME/.cache/fastenal-lookup}"
-SLEEP="${SLEEP:-2}"
-mkdir -p "$CACHE"
-
-# SKUs from args, or one per line from stdin (CRLF, blanks, #-comments tolerated)
-if (( $# == 0 )); then
-  [[ -t 0 ]] && { echo "usage: ${0##*/} SKU [SKU...]  (or pipe SKUs on stdin)" >&2; exit 1; }
-  mapfile -t skus < <(tr -d '\r' | grep -Ev '^[[:space:]]*($|#)')
-  set -- "${skus[@]}"
-fi
-(( $# > 0 )) || { echo "${0##*/}: no SKUs given" >&2; exit 1; }
+# Sourcing this file (e.g. from tests/run.sh) imports the functions only;
+# main() runs when the script is executed directly.
 
 fetch_md() {  # sku -> cached markdown on stdout, or fail
   local sku="$1" f="$CACHE/$sku.md" try
@@ -95,9 +84,22 @@ parse_html() {  # html on stdin -> \x1f-separated: mfr brand mpn unspsc (fixed o
     "$(g 'Manufacturer Part No\.')" "$(g 'UNSPSC')"
 }
 
-printf 'sku\ttitle\tmanufacturer\tbrand\tmfr_part_no\tunspsc\tstatus\n'
+main() {
+  CACHE="${CACHE:-$HOME/.cache/fastenal-lookup}"
+  SLEEP="${SLEEP:-2}"
+  mkdir -p "$CACHE"
 
-for sku in "$@"; do
+  # SKUs from args, or one per line from stdin (CRLF, blanks, #-comments tolerated)
+  if (( $# == 0 )); then
+    [[ -t 0 ]] && { echo "usage: ${0##*/} SKU [SKU...]  (or pipe SKUs on stdin)" >&2; exit 1; }
+    mapfile -t skus < <(tr -d '\r' | grep -Ev '^[[:space:]]*($|#)')
+    set -- "${skus[@]}"
+  fi
+  (( $# > 0 )) || { echo "${0##*/}: no SKUs given" >&2; exit 1; }
+
+  printf 'sku\ttitle\tmanufacturer\tbrand\tmfr_part_no\tunspsc\tstatus\n'
+
+  for sku in "$@"; do
   if md=$(fetch_md "$sku"); then
     IFS=$'\037' read -r title mfr brand mpn unspsc status <<<"$(parse_md "$sku" <<<"$md")"
     # some renders drop link-wrapped Manufacturer/Brand cells -> HTML fallback
@@ -110,7 +112,13 @@ for sku in "$@"; do
   else
     title=-; mfr=-; brand=-; mpn=-; unspsc=-; status=FETCH_FAILED
   fi
-  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
-    "$sku" "${title:--}" "${mfr:--}" "${brand:--}" "${mpn:--}" "${unspsc:--}" "$status"
-  sleep "$SLEEP"
-done
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
+      "$sku" "${title:--}" "${mfr:--}" "${brand:--}" "${mpn:--}" "${unspsc:--}" "$status"
+    sleep "$SLEEP"
+  done
+}
+
+if [[ ${BASH_SOURCE[0]} == "$0" ]]; then
+  set -euo pipefail
+  main "$@"
+fi

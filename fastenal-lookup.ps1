@@ -6,7 +6,7 @@
 #   .\fastenal-lookup.ps1 0345865 0700343 ...          args
 #   Get-Content skus.txt | .\fastenal-lookup.ps1       pipe
 #   .\fastenal-lookup.ps1 < skus.txt                   redirect (CRLF/# ok)
-#   .\fastenal-lookup.ps1 .\skus.txt                    path to a SKU list file
+#   .\fastenal-lookup.ps1 .\skus.txt                   path to a SKU list file
 #   .\fastenal-lookup.ps1 -Pretty ...                   formatted table
 #   .\fastenal-lookup.ps1 ... | Out-File -Encoding utf8 out.tsv
 #     (use Out-File, not >, on PS 5.1 to keep UTF-8 intact)
@@ -17,6 +17,10 @@
 # Manufacturer / Brand), fall back to raw-HTML mode for renders that drop
 # link-wrapped cells. Disk-cached under %LOCALAPPDATA%\fastenal-lookup
 # (or ~/.cache/fastenal-lookup on Unix).
+#
+# Dot-sourcing this file from a script (e.g. tests/run.ps1) imports the
+# functions below into the caller's scope; the dispatch (init/stdin/emit)
+# is skipped unless the script is run standalone (e.g. via -File).
 [CmdletBinding()]
 param(
     [Parameter(Position = 0, ValueFromPipeline = $true, ValueFromRemainingArguments = $true)]
@@ -27,15 +31,7 @@ param(
 )
 
 begin {
-    # PS 5.1 on older Windows may default below TLS 1.2
-    try { [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12 } catch { }
-
-    if (-not $CacheDir) {
-        $CacheDir = if ($env:LOCALAPPDATA) { Join-Path $env:LOCALAPPDATA 'fastenal-lookup' }
-                    else { Join-Path $HOME '.cache/fastenal-lookup' }
-    }
-    New-Item -ItemType Directory -Force -Path $CacheDir | Out-Null
-
+    $script:Standalone = $false
     $script:rows = New-Object System.Collections.Generic.List[object]
     $script:sawInput = $false
 
@@ -134,6 +130,7 @@ begin {
             Sku = $Sku; Title = $r.Title; Manufacturer = $r.Mfr; Brand = $r.Brand
             MfrPartNo = $r.Mpn; Unspsc = $r.Unspsc; Status = $r.Status
         })
+        if ($script:Standalone) { Start-Sleep -Seconds $SleepSec }   # pacing parity with bash
     }
 
     function Add-Skus {
@@ -150,13 +147,27 @@ begin {
             }
         }
     }
+
+    # --- functions end here; below runs only standalone ---
+    if ($MyInvocation.ScriptName -ne '') { return }   # dot-sourced: import only
+    $script:Standalone = $true
+
+    # PS 5.1 on older Windows may default below TLS 1.2
+    try { [Net.ServicePointManager]::SecurityProtocol = [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12 } catch { }
+
+    if (-not $CacheDir) {
+        $CacheDir = if ($env:LOCALAPPDATA) { Join-Path $env:LOCALAPPDATA 'fastenal-lookup' }
+                    else { Join-Path $HOME '.cache/fastenal-lookup' }
+    }
+    New-Item -ItemType Directory -Force -Path $CacheDir | Out-Null
 }
 
 process {
-    if ($Sku) { Add-Skus -Items $Sku }
+    if ($script:Standalone -and $Sku) { Add-Skus -Items $Sku }
 }
 
 end {
+    if (-not $script:Standalone) { return }
     if (-not $script:sawInput) {
         if ([Console]::IsInputRedirected) {
             Add-Skus -Items ([Console]::In.ReadToEnd() -split "`r?`n")

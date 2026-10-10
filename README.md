@@ -46,6 +46,24 @@ reruns are free.
 Statuses: `OK` / `NOT_FOUND` (Fastenal has no such SKU) / `NO_DATA`
 (unusable render) / `PARTIAL` (fields missing) / `FETCH_FAILED`.
 
+## Tests
+
+Offline suites — real cached Fastenal renders as fixtures under
+`tests/fixtures/cache/`, network paths stubbed. No dependencies beyond the
+scripts themselves.
+
+```sh
+tests/run.sh            # bash suite
+pwsh tests/run.ps1      # PowerShell suite (powershell.exe 5.1 works too)
+```
+
+Notable fixtures: `0700343.md` is a real render whose Manufacturer/Brand
+cells were dropped (drives the HTML-fallback path via `0700343.html`);
+`9999999.md` regresses the pipe-in-page-title parsing bug; `0000001.md` is a
+Not Found page; `0000002.md` is a genuine unrendered SPA shell. Both scripts
+are sourceable (`source ./fastenal-lookup.sh` / `. .\fastenal-lookup.ps1`)
+so tests can unit-test the parsers directly — dispatch only runs standalone.
+
 ## Data notes
 
 - Fastenal private-label items (ORMADUS, Body Guard, ...) list manufacturer
