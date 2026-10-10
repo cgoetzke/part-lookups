@@ -20,12 +20,12 @@ TSV=1 ./fastenal-lookup.sh < examples/fastenal-skus.txt | column -t -s$'\t'  # T
 ```powershell
 .\fastenal-lookup.ps1 -Pretty 0345865 0700343            # formatted table
 .\fastenal-lookup.ps1 .\examples\fastenal-skus.txt        # list file arg (CSV default)
-Get-Content examples\fastenal-skus.txt | .\fastenal-lookup.ps1  # pipe
+Get-Content -Encoding UTF8 examples\fastenal-skus.txt | .\fastenal-lookup.ps1  # pipe (5.1-safe)
 .\fastenal-lookup.ps1 -Tsv 0345865                       # tab-separated
-... | Out-File -Encoding utf8 out.csv                     # save (Out-File keeps UTF-8+BOM on PS 5.1)
+... | Out-File -Encoding utf8 out.csv                     # save (5.1 adds the BOM; PS 7 utf8 is BOM-less -- use utf8BOM there)
 ```
 
-CSV mode also emits `sku_excel` / `mfr_part_excel` twin columns: formula cells (`="0345865"`) that Excel renders intact instead of eating leading zeros or turning `06-243` into a date. TSV output (`TSV=1` / `-Tsv`) stays pure for scripts.
+CSV mode also emits `sku_excel` / `mfr_part_excel` twin columns: formula cells (`="0345865"`) that Excel renders intact instead of eating leading zeros or turning `06-243` into a date. TSV output (`TSV=1` / `-Tsv`) stays lean for scripts; fields containing tabs or newlines are replaced with spaces in both implementations.
 
 Or on Windows: double-click `lookup.bat`, or drag a SKU-list `.txt` onto it.
 
@@ -37,7 +37,8 @@ Input: SKUs as args, one per line on stdin, or a `.txt` list file
 
 fastenal.com sits behind Akamai and rejects non-browser clients, so pages
 are fetched through the free `r.jina.ai` rendering proxy (~20 req/min
-unauthenticated — the default 2s pacing stays well under). The primary parse
+unauthenticated; the default 2s pacing (~30/min) can brush that ceiling on
+long runs -- raise `SLEEP` / `-SleepSec` to 3+ for bulk). The primary parse
 reads the markdown render's spec block (`SKU` / `Manufacturer Part No.` /
 `UNSPSC` / `Manufacturer` / `Brand` label/value pairs); a raw-HTML fallback
 greps the `<div class="fw-bold me-2">LABEL</div><div>VALUE</div>` spec table

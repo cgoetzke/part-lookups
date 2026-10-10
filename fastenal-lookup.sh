@@ -7,7 +7,7 @@
 # How it works:
 #   * fastenal.com sits behind Akamai and 403s datacenter IPs, so pages are
 #     fetched through the r.jina.ai rendering proxy (free, no key needed,
-#     rate-limited -- keep SLEEP >= 2 for bulk runs).
+#     rate-limited -- keep SLEEP >= 3 for bulk runs).
 #   * Primary parse: the proxy's markdown render. The spec block is a plain
 #     label/value list:  SKU / Manufacturer Part No. / UNSPSC / Manufacturer /
 #     Brand, values optionally wrapped in [text](url) links.
