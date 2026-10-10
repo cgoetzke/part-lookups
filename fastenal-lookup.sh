@@ -81,7 +81,7 @@ parse_md() {  # markdown on stdin -> \x1f-separated: title mfr brand mpn unspsc 
       if (cur != "" && !(cur in val)) { val[cur] = c; cur = "" }
     }
     END {
-      if (val["SKU"] != want) status = "NO_DATA"   # junk/redirected render
+      if (status == "" && val["SKU"] != want) status = "NO_DATA"   # junk/redirected render
       printf "%s\037%s\037%s\037%s\037%s\037%s\n", title, val["Manufacturer"], val["Brand"], \
             val["Manufacturer Part No."], val["UNSPSC"], (status == "" ? "OK" : status)
     }

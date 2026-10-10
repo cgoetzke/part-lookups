@@ -90,7 +90,7 @@ begin {
                 $cur = $null
             }
         }
-        if ($val['SKU'] -cne $WantSku) { $status = 'NO_DATA' }
+        if ($status -eq 'OK' -and $val['SKU'] -cne $WantSku) { $status = 'NO_DATA' }
         [pscustomobject]@{
             Title = $title; Mfr = $val['Manufacturer']; Brand = $val['Brand']
             Mpn = $val['Manufacturer Part No.']; Unspsc = $val['UNSPSC']; Status = $status
