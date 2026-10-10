@@ -13,15 +13,15 @@ Resolve distributor SKUs to manufacturer + OEM part number.
 ## Usage
 
 ```sh
-./fastenal-lookup.sh < skus-example.txt > out.tsv        # TSV to stdout
+./fastenal-lookup.sh < examples/fastenal-skus.txt > out.tsv    # TSV to stdout
 ./fastenal-lookup.sh -Pretty 0345865 0700343 2>/dev/null # bash has no -Pretty;
                                                          # pipe through column -t -s$'\t'
 ```
 
 ```powershell
 .\fastenal-lookup.ps1 -Pretty 0345865 0700343            # formatted table
-.\fastenal-lookup.ps1 .\skus-example.txt                  # list file arg
-Get-Content skus.txt | .\fastenal-lookup.ps1              # pipe
+.\fastenal-lookup.ps1 .\examples\fastenal-skus.txt        # list file arg
+Get-Content examples\fastenal-skus.txt | .\fastenal-lookup.ps1  # pipe
 ... | Out-File -Encoding utf8 out.tsv                     # save (use Out-File, not >, on PS 5.1)
 ```
 
