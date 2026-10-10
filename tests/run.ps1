@@ -68,7 +68,7 @@ if ("$md" -match '### Product Attributes') { Ok 'Get-Page cache hit' } else { Ba
 
 # --- Get-Page: stubbed network (function shadows the cmdlet in this scope)
 function Invoke-WebRequest {
-    param([string]$Uri, [hashtable]$Headers, [switch]$UseBasicParsing, [int]$TimeoutSec)
+    param([string]$Uri, [hashtable]$Headers, [switch]$UseBasicParsing, [int]$TimeoutSec, [string]$UserAgent)
     [pscustomobject]@{ Content = $script:StubContent }
 }
 $tdir = Join-Path ([IO.Path]::GetTempPath()) ("fltest-" + [IO.Path]::GetRandomFileName())

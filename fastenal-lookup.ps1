@@ -24,6 +24,7 @@
 # Dot-sourcing this file from a script (e.g. tests/run.ps1) imports the
 # functions below into the caller's scope; the dispatch (init/stdin/emit)
 # is skipped unless the script is run standalone (e.g. via -File).
+#requires -Version 5.1
 [CmdletBinding()]
 param(
     [Parameter(Position = 0, ValueFromPipeline = $true, ValueFromRemainingArguments = $true)]
@@ -56,7 +57,7 @@ begin {
         if ($Mode -eq 'html') { $headers['X-Return-Format'] = 'html' }
         for ($i = 0; $i -lt 3; $i++) {
             try {
-                $r = Invoke-WebRequest -Uri $url -Headers $headers -UseBasicParsing -TimeoutSec 90
+                $r = Invoke-WebRequest -Uri $url -Headers $headers -UseBasicParsing -TimeoutSec 90 -UserAgent 'fastenal-lookup/1.0 (+https://github.com/cgoetzke/part-lookups)'
                 if ($r.Content -match $okPattern) {
                     [IO.File]::WriteAllText($path, $r.Content, (New-Object Text.UTF8Encoding($false)))
                     return $r.Content

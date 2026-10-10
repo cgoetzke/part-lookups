@@ -32,7 +32,7 @@ fetch_md() {  # sku -> cached markdown on stdout, or fail
   local sku="$1" f="$CACHE/$sku.md" try
   [[ -s $f ]] && grep -q '### Product Attributes\|### Not Found' "$f" && { cat "$f"; return 0; }
   for try in 1 2 3; do
-    curl -sfL --max-time 90 -H "X-Timeout: 30" \
+    curl -sfL --max-time 90 -A "fastenal-lookup/1.0 (+https://github.com/cgoetzke/part-lookups)" -H "X-Timeout: 30" \
       "https://r.jina.ai/https://www.fastenal.com/product/details/$sku" -o "$f" || return 1
     # rendered pages carry the attributes table or a Not Found heading;
     # unrendered SPA shells are tiny and useless -- retry
@@ -46,7 +46,7 @@ fetch_html() {  # sku -> cached html on stdout, or fail
   local sku="$1" f="$CACHE/$sku.html" try
   [[ -s $f ]] && grep -q 'fw-bold me-2\|>Not Found<' "$f" && { cat "$f"; return 0; }
   for try in 1 2 3; do
-    curl -sfL --max-time 90 -H "X-Return-Format: html" -H "X-Timeout: 30" \
+    curl -sfL --max-time 90 -A "fastenal-lookup/1.0 (+https://github.com/cgoetzke/part-lookups)" -H "X-Return-Format: html" -H "X-Timeout: 30" \
       "https://r.jina.ai/https://www.fastenal.com/product/details/$sku" -o "$f" || return 1
     grep -q 'fw-bold me-2\|>Not Found<' "$f" && { cat "$f"; return 0; }
     sleep 2
@@ -121,7 +121,7 @@ main() {
   CACHE="${CACHE:-$HOME/.cache/fastenal-lookup}"
   SLEEP="${SLEEP:-2}"
   TSV="${TSV:-0}"
-  mkdir -p "$CACHE"
+  mkdir -p -m 700 "$CACHE"
 
   # SKUs from args, or one per line from stdin (CRLF, blanks, #-comments tolerated)
   if (( $# == 0 )); then
