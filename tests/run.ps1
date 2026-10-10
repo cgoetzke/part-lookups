@@ -43,6 +43,11 @@ $h = ConvertFrom-Html -Html ([IO.File]::ReadAllText((Join-Path $Fix '0700343.htm
 AssertEq 'html: spec-table pairs' 'HUBBELL|BRYANT|BRY5965Y|39121402' `
     ((@($h.Mfr, $h.Brand, $h.Mpn, $h.Unspsc) | ForEach-Object { "$_" }) -join '|')
 
+# --- ConvertTo-CsvField unit tests (RFC4180 quoting)
+AssertEq 'csv field: plain untouched' 'abc' (ConvertTo-CsvField 'abc')
+AssertEq 'csv field: comma quoted' '"a,b"' (ConvertTo-CsvField 'a,b')
+AssertEq 'csv field: quote doubled' '"a""b"' (ConvertTo-CsvField 'a"b')
+
 # --- Get-Page: cache hit is offline
 $CacheDir = $Fix
 $md = Get-Page -Sku 0700344 -Mode md
@@ -73,7 +78,7 @@ Remove-Item -Recurse -Force $tdir -ErrorAction SilentlyContinue
 # --- end-to-end via a child engine process, offline via fixture cache
 $psExe = (Get-Process -Id $PID).Path
 $script1 = Join-Path $Root 'fastenal-lookup.ps1'
-$out = & $psExe -NoProfile -File $script1 -CacheDir $Fix -SleepSec 0 0700344 0345865 9999999 0000001
+$out = & $psExe -NoProfile -File $script1 -Tsv -CacheDir $Fix -SleepSec 0 0700344 0345865 9999999 0000001
 AssertEq 'e2e: header' "sku`ttitle`tmanufacturer`tbrand`tmfr_part_no`tunspsc`tstatus" (@($out)[0])
 AssertEq 'e2e: 0700344 row' `
     "0700344`t15A 125V 2P 3W 5-15 Yellow Straight Connector`tHUBBELL`tBRYANT`tBRY5969Y`t39121421`tOK" `
@@ -88,13 +93,21 @@ AssertEq 'e2e: NOT_FOUND row' `
     "0000001`tNot Found`t-`t-`t-`t-`tNOT_FOUND" `
     (Row $out '0000001')
 
-$out2 = & $psExe -NoProfile -File $script1 -CacheDir $Fix -SleepSec 0 0700343
+$out2 = & $psExe -NoProfile -File $script1 -Tsv -CacheDir $Fix -SleepSec 0 0700343
 AssertEq 'e2e: md/html fallback fills blank fields (0700343)' `
     "0700343`t15A 125V 2P 3W NEMA 5-15 Yellow Straight Blade Plug`tHUBBELL`tBRYANT`tBRY5965Y`t39121402`tOK" `
     (Row $out2 '0700343')
 
-$out3 = '0700344', '# comment', '', '0345865' | & $psExe -NoProfile -File $script1 -CacheDir $Fix -SleepSec 0
+$out3 = '0700344', '# comment', '', '0345865' | & $psExe -NoProfile -File $script1 -Tsv -CacheDir $Fix -SleepSec 0
 AssertEq 'e2e: pipe input with comments/blanks (3 lines)' 3 @($out3).Count
+
+# --- default output format: Excel-friendly CSV (no BOM from the script
+#     itself on PS; Out-File -Encoding utf8 supplies it on 5.1)
+$outc = & $psExe -NoProfile -File $script1 -CacheDir $Fix -SleepSec 0 0700344
+AssertEq 'e2e: default CSV header' 'sku,title,manufacturer,brand,mfr_part_no,unspsc,status' (@($outc)[0])
+AssertEq 'e2e: default CSV row' `
+    '0700344,15A 125V 2P 3W 5-15 Yellow Straight Connector,HUBBELL,BRYANT,BRY5969Y,39121421,OK' `
+    (@($outc | Where-Object { $_ -like '0700344,*' })[0])
 
 Write-Host ''
 Write-Host ("passed {0}, failed {1}" -f $script:Pass, $script:Fail)

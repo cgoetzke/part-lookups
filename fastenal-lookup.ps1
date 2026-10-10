@@ -10,8 +10,9 @@
 #   .\fastenal-lookup.ps1 < skus.txt                   redirect (CRLF/# ok)
 #   .\fastenal-lookup.ps1 .\skus.txt                   path to a SKU list file
 #   .\fastenal-lookup.ps1 -Pretty ...                   formatted table
-#   .\fastenal-lookup.ps1 ... | Out-File -Encoding utf8 out.tsv
-#     (use Out-File, not >, on PS 5.1 to keep UTF-8 intact)
+#   .\fastenal-lookup.ps1 ... | Out-File -Encoding utf8 out.csv
+#     (use Out-File, not >, on PS 5.1 to keep UTF-8 + BOM intact)
+#   .\fastenal-lookup.ps1 -Tsv ...                      tab-separated (default: CSV)
 #
 # Method (same as the bash version): fetch the Fastenal product page through
 # the r.jina.ai rendering proxy (fastenal.com blocks non-browser clients),
@@ -28,6 +29,7 @@ param(
     [Parameter(Position = 0, ValueFromPipeline = $true, ValueFromRemainingArguments = $true)]
     [string[]]$Sku,
     [switch]$Pretty,
+    [switch]$Tsv,
     [string]$CacheDir,
     [int]$SleepSec = 2
 )
@@ -150,6 +152,12 @@ begin {
         }
     }
 
+    # CSV field: RFC4180-quote when it contains , " or newline
+    function ConvertTo-CsvField {
+        param([string]$Field)
+        if ($Field -match '[,"\r\n]') { '"' + $Field.Replace('"', '""') + '"' } else { $Field }
+    }
+
     # --- functions end here; below runs only standalone ---
     if ($MyInvocation.ScriptName -ne '') { return }   # dot-sourced: import only
     $script:Standalone = $true
@@ -187,11 +195,17 @@ end {
             @{n='Title';e={ if ($_.Title -and $_.Title.Length -gt 55) { $_.Title.Substring(0,55) + '...' } else { $_.Title } }},
             Manufacturer, Brand, MfrPartNo, Unspsc, Status -AutoSize | Out-String -Width 4096
     } else {
-        "sku`ttitle`tmanufacturer`tbrand`tmfr_part_no`tunspsc`tstatus"
+        # Default output: Excel-friendly CSV (comma-delimited, RFC4180-
+        # quoted). The UTF-8 BOM is supplied by Out-File -Encoding utf8
+        # on PS 5.1 (see usage note); -Tsv restores pure tab-separated
+        # output for pipes.
+        $sep = if ($Tsv) { "`t" } else { ',' }
+        ('sku','title','manufacturer','brand','mfr_part_no','unspsc','status') -join $sep
         foreach ($r in $script:rows) {
             $f = @($r.Sku, $r.Title, $r.Manufacturer, $r.Brand, $r.MfrPartNo, $r.Unspsc, $r.Status) |
-                 ForEach-Object { if ($_ -eq $null -or $_ -eq '') { '-' } else { "$_" -replace "`t", ' ' } }
-            ($f -join "`t")
+                 ForEach-Object { if ($_ -eq $null -or $_ -eq '') { '-' } else { "$_" } }
+            if ($Tsv) { ($f | ForEach-Object { $_ -replace "`t", ' ' }) -join $sep }
+            else      { ($f | ForEach-Object { ConvertTo-CsvField $_ }) -join $sep }
         }
     }
 }

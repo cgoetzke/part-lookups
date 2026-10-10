@@ -22,6 +22,11 @@ source ./fastenal-lookup.sh > "$srcout" 2>&1
 assert_eq "sourcing is silent" "" "$(cat "$srcout")"
 rm -f "$srcout"
 
+# --- csvq unit tests (RFC4180 quoting)
+assert_eq "csvq: plain untouched" "abc" "$(csvq abc)"
+assert_eq "csvq: comma quoted" '"a,b"' "$(csvq 'a,b')"
+assert_eq "csvq: quote doubled" '"a""b"' "$(csvq 'a"b')"
+
 # --- parse_md unit tests (against real cached renders)
 mdf() { parse_md "$2" < "$FIX/$1" | tr '\037' '|'; }
 assert_eq "md: full fields (0700344)" \
@@ -41,7 +46,7 @@ assert_eq "html: spec-table pairs" "HUBBELL|BRYANT|BRY5965Y|39121402" \
   "$(parse_html < "$FIX/0700343.html" | tr '\037' '|')"
 
 # --- end-to-end, offline via fixture cache
-E() { SLEEP=0 CACHE="$FIX" ./fastenal-lookup.sh "$@"; }
+E() { SLEEP=0 CACHE="$FIX" TSV=1 ./fastenal-lookup.sh "$@"; }   # TSV mode: regression anchor
 out=$(E 0700344 0345865 9999999 0000001)
 assert_eq "e2e: header" \
   "$(printf 'sku\ttitle\tmanufacturer\tbrand\tmfr_part_no\tunspsc\tstatus')" "$(head -1 <<<"$out")"
@@ -61,8 +66,17 @@ assert_eq "e2e: md/html fallback fills blank fields (0700343)" \
   "$(printf '0700343\t15A 125V 2P 3W NEMA 5-15 Yellow Straight Blade Plug\tHUBBELL\tBRYANT\tBRY5965Y\t39121402\tOK')" \
   "$(row "$out3" 0700343)"
 
+# --- default output format: Excel-friendly CSV (comma, BOM, quoting)
+out=$(SLEEP=0 CACHE="$FIX" ./fastenal-lookup.sh 0700344 0345865)
+assert_eq "csv: BOM + comma header" \
+  "$(printf '\xef\xbb\xbfsku,title,manufacturer,brand,mfr_part_no,unspsc,status')" "$(head -1 <<<"$out")"
+assert_eq "csv: row delimiter is comma" \
+  "$(printf '0700344,15A 125V 2P 3W 5-15 Yellow Straight Connector,HUBBELL,BRYANT,BRY5969Y,39121421,OK')" \
+  "$(grep '^0700344,' <<<"$out")"
+assert_eq "csv: no BOM in TSV mode" "sku" "$(TSV=1 SLEEP=0 CACHE="$FIX" ./fastenal-lookup.sh 0700344 | head -c3)"
+
 # --- stdin: CRLF, comments, blank lines
-n=$(printf '0700344\r\n# a comment\n\n0345865\n' | SLEEP=0 CACHE="$FIX" ./fastenal-lookup.sh | wc -l)
+n=$(printf '0700344\r\n# a comment\n\n0345865\n' | TSV=1 SLEEP=0 CACHE="$FIX" ./fastenal-lookup.sh | wc -l)
 assert_eq "stdin: comments/CRLF tolerated (3 output lines)" "3" "$n"
 
 # --- usage error on empty stdin
@@ -89,17 +103,17 @@ exit 0
 STUBEOF
 chmod +x "$STUB/curl"
 
-out=$(PATH="$STUB:$PATH" STUB_EXIT=1 SLEEP=0 CACHE=$TMP ./fastenal-lookup.sh 1234567)
+out=$(PATH="$STUB:$PATH" STUB_EXIT=1 SLEEP=0 TSV=1 CACHE=$TMP ./fastenal-lookup.sh 1234567)
 assert_eq "stub: curl failure -> FETCH_FAILED row" \
   "$(printf '1234567\t-\t-\t-\t-\t-\tFETCH_FAILED')" "$(row "$out" 1234567)"
 
-out=$(PATH="$STUB:$PATH" SLEEP=0 CACHE=$TMP ./fastenal-lookup.sh 7654321)
+out=$(PATH="$STUB:$PATH" SLEEP=0 TSV=1 CACHE=$TMP ./fastenal-lookup.sh 7654321)
 assert_eq "stub: persistent SPA shell -> FETCH_FAILED row" \
   "$(printf '7654321\t-\t-\t-\t-\t-\tFETCH_FAILED')" "$(row "$out" 7654321)"
 if [[ ! -e $TMP/7654321.md ]]; then ok "stub: shell page never cached"; else bad "stub: shell page never cached"; fi
 
 printf '%s' '<div id="root"></div>' > "$TMP/0700344.md"   # stale shell sitting in cache
-out=$(PATH="$STUB:$PATH" STUB_BODY_FILE="$FIX/0700344.md" SLEEP=0 CACHE=$TMP ./fastenal-lookup.sh 0700344)
+out=$(PATH="$STUB:$PATH" STUB_BODY_FILE="$FIX/0700344.md" SLEEP=0 TSV=1 CACHE=$TMP ./fastenal-lookup.sh 0700344)
 assert_eq "stub: stale shell rejected, good page refetched" \
   "$(printf '0700344\t15A 125V 2P 3W 5-15 Yellow Straight Connector\tHUBBELL\tBRYANT\tBRY5969Y\t39121421\tOK')" \
   "$(row "$out" 0700344)"

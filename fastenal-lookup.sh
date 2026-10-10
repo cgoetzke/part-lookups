@@ -20,9 +20,11 @@
 # Usage:   ./fastenal-lookup.sh 0345865 0700343 ...
 #          ./fastenal-lookup.sh < skus.txt        (one SKU per line; # comments OK)
 #          xargs -n 32 ./fastenal-lookup.sh < skus.txt   (parallel-ish batches)
-# Output:  TSV: sku, title, manufacturer, brand, mfr_part_no, unspsc, status
+# Output:  CSV: sku, title, manufacturer, brand, mfr_part_no, unspsc, status
+#          (Excel-friendly: comma-delimited, quoted, UTF-8 BOM)
 # Env:     CACHE=dir   disk cache (default ~/.cache/fastenal-lookup)
 #          SLEEP=secs  pause between live fetches (default 2)
+#          TSV=1       tab-separated output, no BOM (pipe-friendly)
 # Sourcing this file (e.g. from tests/run.sh) imports the functions only;
 # main() runs when the script is executed directly.
 
@@ -86,9 +88,28 @@ parse_html() {  # html on stdin -> \x1f-separated: mfr brand mpn unspsc (fixed o
     "$(g 'Manufacturer Part No\.')" "$(g 'UNSPSC')"
 }
 
+csvq() {  # csv field -> stdout, RFC4180-quoted if it contains , " or newline
+  local f=$1
+  case $f in
+    *,*|*'"'*) f=${f//'"'/'""'}; printf '"%s"' "$f" ;;
+    *) printf '%s' "$f" ;;
+  esac
+}
+
+emit_row() {  # 7 fields -> active output format (TSV or CSV) on stdout
+  if (( TSV )); then
+    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$@"
+  else
+    local f q line=''
+    for f; do q=$(csvq "$f"); line+="${line:+,}$q"; done
+    printf '%s\n' "$line"
+  fi
+}
+
 main() {
   CACHE="${CACHE:-$HOME/.cache/fastenal-lookup}"
   SLEEP="${SLEEP:-2}"
+  TSV="${TSV:-0}"
   mkdir -p "$CACHE"
 
   # SKUs from args, or one per line from stdin (CRLF, blanks, #-comments tolerated)
@@ -99,7 +120,8 @@ main() {
   fi
   (( $# > 0 )) || { echo "${0##*/}: no SKUs given" >&2; exit 1; }
 
-  printf 'sku\ttitle\tmanufacturer\tbrand\tmfr_part_no\tunspsc\tstatus\n'
+  (( TSV )) || printf '\xef\xbb\xbf'   # UTF-8 BOM: Excel opens the CSV clean
+  emit_row sku title manufacturer brand mfr_part_no unspsc status
 
   for sku in "$@"; do
   if md=$(fetch_md "$sku"); then
@@ -114,8 +136,7 @@ main() {
   else
     title=-; mfr=-; brand=-; mpn=-; unspsc=-; status=FETCH_FAILED
   fi
-    printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' \
-      "$sku" "${title:--}" "${mfr:--}" "${brand:--}" "${mpn:--}" "${unspsc:--}" "$status"
+    emit_row "$sku" "${title:--}" "${mfr:--}" "${brand:--}" "${mpn:--}" "${unspsc:--}" "$status"
     sleep "$SLEEP"
   done
 }
